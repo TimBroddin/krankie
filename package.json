@@ -1,0 +1,47 @@
+{
+  "name": "krankie",
+  "version": "0.1.0",
+  "description": "AI-first App Store keyword ranking tracker",
+  "author": "Tim Broddin <tim@broddin.be>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TimBroddin/krankie.git"
+  },
+  "keywords": [
+    "app-store",
+    "aso",
+    "keyword-ranking",
+    "cli",
+    "agent",
+    "ai"
+  ],
+  "module": "src/cli/index.ts",
+  "type": "module",
+  "bin": {
+    "krankie": "./src/cli/index.ts"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "bun run src/cli/index.ts",
+    "tui": "bun run src/tui/index.tsx"
+  },
+  "dependencies": {
+    "ink": "^5.1.0",
+    "react": "^18.3.1",
+    "cli-table3": "^0.6.5"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^18.3.18"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}
