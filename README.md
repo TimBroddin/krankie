@@ -53,7 +53,8 @@ krankie cron install --hour 3
 - `krankie app search <query>` - Search App Store for apps
 - `krankie app create <app_id>` - Add app to track (auto-fetches name)
 - `krankie app list` - List tracked apps
-- `krankie app show <app_id>` - Show app details
+- `krankie app show <app_id>` - Show tracked app details
+- `krankie app info <app_id>` - Fetch full App Store metadata (ratings, version, description, etc.)
 - `krankie app delete <app_id>` - Remove app
 
 ### Keyword Management

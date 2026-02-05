@@ -1,6 +1,6 @@
 import { parseArgs } from "util";
 import { createApp, listApps, getAppByAppId, deleteApp, listKeywords } from "../../db";
-import { lookupApp, searchAppStore } from "../../scraper/appstore";
+import { lookupApp, lookupAppDetails, searchAppStore } from "../../scraper/appstore";
 import { outputTable, outputSuccess, outputError } from "../output";
 import { CONFIG, isValidPlatform, type Platform } from "../../config";
 
@@ -18,6 +18,9 @@ export async function run(args: string[]): Promise<void> {
     case "show":
       await show(subArgs);
       break;
+    case "info":
+      await info(subArgs);
+      break;
     case "delete":
       await remove(subArgs);
       break;
@@ -30,12 +33,13 @@ export async function run(args: string[]): Promise<void> {
 }
 
 function printHelp(): void {
-  console.log(`Usage: krankie app <create|list|show|delete|search> [options]
+  console.log(`Usage: krankie app <create|list|show|info|delete|search> [options]
 
 Commands:
   create <app_id>   Add a new app to track
   list              List all tracked apps
-  show <app_id>     Show app details
+  show <app_id>     Show tracked app details
+  info <app_id>     Fetch full App Store metadata
   delete <app_id>   Remove an app
   search <query>    Search App Store for apps
 
@@ -183,6 +187,65 @@ async function show(args: string[]): Promise<void> {
         console.log(`  ${store}: ${kws.join(", ")}`);
       });
     }
+  }
+}
+
+async function info(args: string[]): Promise<void> {
+  const { values, positionals } = parseArgs({
+    args,
+    options: {
+      store: { type: "string", default: "us" },
+      json: { type: "boolean", default: false },
+    },
+    allowPositionals: true,
+  });
+
+  const appId = positionals[0];
+  if (!appId) {
+    outputError("App ID required");
+    process.exit(1);
+  }
+
+  const store = values.store as string;
+  const details = await lookupAppDetails(appId, store);
+
+  if (!details) {
+    outputError(`App not found: ${appId}`);
+    process.exit(1);
+  }
+
+  if (values.json) {
+    console.log(JSON.stringify(details, null, 2));
+  } else {
+    const sizeInMB = (parseInt(details.fileSizeBytes, 10) / 1024 / 1024).toFixed(1);
+
+    console.log(`${details.trackName}
+${"=".repeat(details.trackName.length)}
+
+App ID:       ${details.trackId}
+Bundle ID:    ${details.bundleId}
+Developer:    ${details.artistName}
+Price:        ${details.formattedPrice}
+Category:     ${details.primaryGenreName}
+Rating:       ${details.averageUserRating.toFixed(1)} (${details.userRatingCount.toLocaleString()} ratings)
+Version:      ${details.version}
+Size:         ${sizeInMB} MB
+Min iOS:      ${details.minimumOsVersion}
+Content:      ${details.contentAdvisoryRating}
+Released:     ${new Date(details.releaseDate).toLocaleDateString()}
+Updated:      ${new Date(details.currentVersionReleaseDate).toLocaleDateString()}
+
+Genres:       ${details.genres.join(", ")}
+Languages:    ${details.languageCodesISO2A.slice(0, 10).join(", ")}${details.languageCodesISO2A.length > 10 ? ` (+${details.languageCodesISO2A.length - 10} more)` : ""}
+
+App Store:    ${details.trackViewUrl}
+`);
+
+    if (details.releaseNotes) {
+      console.log(`Release Notes:\n${details.releaseNotes.slice(0, 500)}${details.releaseNotes.length > 500 ? "..." : ""}\n`);
+    }
+
+    console.log(`Description:\n${details.description.slice(0, 500)}${details.description.length > 500 ? "..." : ""}`);
   }
 }
 

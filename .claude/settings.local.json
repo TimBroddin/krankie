@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(br --help:*)",
+      "Bash(br init:*)",
+      "Bash(br info:*)",
+      "mcp__astro__list_apps",
+      "mcp__astro__get_version",
+      "mcp__astro__get_app_keywords",
+      "Bash(br create --title \"Set up project structure and dependencies\" --body \"$\\(cat <<''EOF''\n## Description\nInitialize the krankie project with proper structure, TypeScript config, and dependencies.\n\n## Tasks\n- Create src/ directory structure as per design doc\n- Set up package.json with dependencies:\n  - `ink` and `react` for TUI\n  - CLI argument parsing \\(consider using Bun''s built-in or minimal lib\\)\n- Configure tsconfig.json for Bun\n- Create bin entry point\n\n## Acceptance Criteria\n- `bun run src/cli/index.ts --help` shows usage\n- Project structure matches design doc\nEOF\n\\)\" --label setup)",
+      "Bash(br create --help:*)",
+      "Bash(br create \"Set up project structure and dependencies\" -t feature -d \"$\\(cat <<''EOF''\nInitialize the krankie project with proper structure, TypeScript config, and dependencies.\n\n## Tasks\n- Create src/ directory structure as per design doc\n- Set up package.json with dependencies \\(ink, react for TUI\\)\n- Configure tsconfig.json for Bun\n- Create bin entry point\n\n## Acceptance Criteria\n- `bun run src/cli/index.ts --help` shows usage\n- Project structure matches design doc\nEOF\n\\)\" -l setup)",
+      "Bash(br create:*)",
+      "Bash(br list:*)",
+      "Bash(br epic --help:*)",
+      "Bash(br graph:*)",
+      "Bash(br ready:*)",
+      "Bash(br blocked:*)",
+      "Bash(br show:*)",
+      "Bash(br update:*)",
+      "Bash(bun install:*)",
+      "Bash(bun run:*)",
+      "Bash(br close:*)",
+      "Bash(br comments create bd-23j \"Project structure set up with CLI skeleton. All commands have help text, instructions command works in all formats.\")",
+      "Bash(bun -e:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npm publish:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

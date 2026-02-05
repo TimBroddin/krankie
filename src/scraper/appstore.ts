@@ -146,7 +146,121 @@ export async function checkMultiple(
   return results;
 }
 
-// Utility to get app info from App Store
+// Full app details from App Store
+export interface AppDetails {
+  trackId: number;
+  bundleId: string;
+  trackName: string;
+  description: string;
+  artistName: string;
+  artistId: number;
+  artistUrl: string;
+  sellerName: string;
+  sellerUrl?: string;
+  price: number;
+  currency: string;
+  formattedPrice: string;
+  free: boolean;
+  primaryGenreName: string;
+  primaryGenreId: number;
+  genres: string[];
+  genreIds: string[];
+  contentAdvisoryRating: string;
+  trackContentRating: string;
+  averageUserRating: number;
+  averageUserRatingForCurrentVersion: number;
+  userRatingCount: number;
+  userRatingCountForCurrentVersion: number;
+  version: string;
+  releaseDate: string;
+  currentVersionReleaseDate: string;
+  releaseNotes?: string;
+  minimumOsVersion: string;
+  fileSizeBytes: string;
+  artworkUrl60: string;
+  artworkUrl100: string;
+  artworkUrl512: string;
+  screenshotUrls: string[];
+  ipadScreenshotUrls: string[];
+  trackViewUrl: string;
+  supportedDevices: string[];
+  languageCodesISO2A: string[];
+  features: string[];
+}
+
+export async function lookupAppDetails(
+  appId: string,
+  store: string = "us"
+): Promise<AppDetails | null> {
+  const url = `https://itunes.apple.com/lookup?id=${appId}&country=${store}`;
+
+  try {
+    const response = await withRetry(async () => {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": randomUserAgent(),
+          Accept: "application/json",
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      return res.json() as Promise<{ resultCount: number; results: Record<string, unknown>[] }>;
+    });
+
+    if (response.resultCount > 0 && response.results[0]) {
+      const r = response.results[0];
+      return {
+        trackId: r.trackId as number,
+        bundleId: r.bundleId as string,
+        trackName: r.trackName as string,
+        description: r.description as string,
+        artistName: r.artistName as string,
+        artistId: r.artistId as number,
+        artistUrl: r.artistViewUrl as string,
+        sellerName: r.sellerName as string,
+        sellerUrl: r.sellerUrl as string | undefined,
+        price: r.price as number,
+        currency: r.currency as string,
+        formattedPrice: r.formattedPrice as string,
+        free: (r.price as number) === 0,
+        primaryGenreName: r.primaryGenreName as string,
+        primaryGenreId: r.primaryGenreId as number,
+        genres: r.genres as string[],
+        genreIds: r.genreIds as string[],
+        contentAdvisoryRating: r.contentAdvisoryRating as string,
+        trackContentRating: r.trackContentRating as string,
+        averageUserRating: r.averageUserRating as number,
+        averageUserRatingForCurrentVersion: r.averageUserRatingForCurrentVersion as number,
+        userRatingCount: r.userRatingCount as number,
+        userRatingCountForCurrentVersion: r.userRatingCountForCurrentVersion as number,
+        version: r.version as string,
+        releaseDate: r.releaseDate as string,
+        currentVersionReleaseDate: r.currentVersionReleaseDate as string,
+        releaseNotes: r.releaseNotes as string | undefined,
+        minimumOsVersion: r.minimumOsVersion as string,
+        fileSizeBytes: r.fileSizeBytes as string,
+        artworkUrl60: r.artworkUrl60 as string,
+        artworkUrl100: r.artworkUrl100 as string,
+        artworkUrl512: r.artworkUrl512 as string,
+        screenshotUrls: r.screenshotUrls as string[],
+        ipadScreenshotUrls: r.ipadScreenshotUrls as string[],
+        trackViewUrl: r.trackViewUrl as string,
+        supportedDevices: r.supportedDevices as string[],
+        languageCodesISO2A: r.languageCodesISO2A as string[],
+        features: r.features as string[],
+      };
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Utility to get basic app info from App Store
 export async function lookupApp(
   appId: string,
   store: string = "us"
