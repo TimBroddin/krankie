@@ -3,11 +3,10 @@ import { parseArgs } from "util";
 const INSTRUCTIONS_MD = `# krankie - App Store Keyword Ranking Tracker
 
 ## Quick Start
-1. krankie init
-2. krankie app create <app_id> --platform iphone
-3. krankie keyword add <app_id> "my keyword" --store us
-4. krankie check run
-5. krankie rankings --json
+1. krankie app create <app_id> --platform iphone
+2. krankie keyword add <app_id> "my keyword" --store us
+3. krankie check run
+4. krankie rankings --json
 
 ## Commands
 
@@ -50,7 +49,6 @@ const INSTRUCTIONS_JSON = {
   name: "krankie",
   description: "App Store Keyword Ranking Tracker",
   quickStart: [
-    "krankie init",
     "krankie app create <app_id> --platform iphone",
     "krankie keyword add <app_id> <keyword> --store us",
     "krankie check run",

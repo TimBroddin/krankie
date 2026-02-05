@@ -1,7 +1,5 @@
 #!/usr/bin/env bun
 
-import { parseArgs } from "util";
-
 const commands = {
   app: () => import("./commands/app"),
   keyword: () => import("./commands/keyword"),
@@ -9,8 +7,7 @@ const commands = {
   cron: () => import("./commands/cron"),
   rankings: () => import("./commands/rankings"),
   instructions: () => import("./commands/instructions"),
-  init: () => import("./commands/init"),
-  info: () => import("./commands/init"),
+  info: () => import("./commands/info"),
   tui: () => import("../tui/index"),
 };
 
@@ -28,7 +25,6 @@ Commands:
   cron          Manage scheduled checks
   rankings      Query ranking data
   instructions  Show agent instructions
-  init          Initialize database
   info          Show database info
   tui           Launch dashboard
 
@@ -37,7 +33,6 @@ Options:
   --json        Output as JSON (where applicable)
 
 Examples:
-  krankie init
   krankie app create 6737412117 --name "My App" --platform iphone
   krankie keyword add 6737412117 "my keyword" --store us
   krankie check run

@@ -24,9 +24,6 @@ bun install -g krankie
 ## Quick Start
 
 ```bash
-# Initialize
-krankie init
-
 # Search for an app
 krankie app search "my app" --platform iphone
 
@@ -79,7 +76,6 @@ krankie cron install --hour 3
 - `krankie rankings history <keyword_id>` - Show history
 
 ### Utilities
-- `krankie init` - Initialize database
 - `krankie info` - Show database info and stats
 - `krankie instructions` - Show agent instructions
 - `krankie tui` - Launch fullscreen dashboard
