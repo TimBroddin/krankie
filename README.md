@@ -97,12 +97,18 @@ krankie check status --json
 
 ### Claude Code Integration
 
-Add this to your project's `CLAUDE.md` to let Claude Code use krankie:
+**Add to your CLAUDE.md:**
 
 ```markdown
 ## App Store Keyword Tracking
 
-Track some common keywords for this app. Use krankie (`bunx krankie instructions` for details).
+Use krankie for ASO keyword tracking. Run `bunx krankie instructions` for usage details.
+```
+
+**Or just prompt Claude:**
+
+```
+Track some common keywords for this app using krankie (bunx krankie instructions for details).
 ```
 
 ### Tips
