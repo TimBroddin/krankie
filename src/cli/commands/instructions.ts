@@ -14,7 +14,8 @@ const INSTRUCTIONS_MD = `# krankie - App Store Keyword Ranking Tracker
 - \`krankie app search <query>\` - Search App Store for apps
 - \`krankie app create <app_id>\` - Add app to track
 - \`krankie app list\` - List tracked apps
-- \`krankie app show <app_id>\` - Show app details
+- \`krankie app show <app_id>\` - Show tracked app details
+- \`krankie app info <app_id>\` - Fetch full App Store metadata (ratings, version, description, etc.)
 - \`krankie app delete <app_id>\` - Remove app
 
 ### Keyword Management
@@ -23,7 +24,8 @@ const INSTRUCTIONS_MD = `# krankie - App Store Keyword Ranking Tracker
 - \`krankie keyword delete <keyword_id>\` - Remove keyword
 
 ### Ranking Checks
-- \`krankie check run\` - Fetch current rankings
+- \`krankie check run\` - Fetch current rankings (skips keywords checked within 24h)
+- \`krankie check run --force\` - Force check all keywords
 - \`krankie check status\` - Show last check time
 
 ### Cron Scheduling
@@ -60,6 +62,7 @@ const INSTRUCTIONS_JSON = {
       create: { args: "<app_id>", options: ["--name", "--platform"] },
       list: { options: ["--json"] },
       show: { args: "<app_id>", options: ["--json"] },
+      info: { args: "<app_id>", description: "Fetch full App Store metadata", options: ["--store", "--json"] },
       delete: { args: "<app_id>" },
     },
     keyword: {
@@ -68,7 +71,7 @@ const INSTRUCTIONS_JSON = {
       delete: { args: "<keyword_id>" },
     },
     check: {
-      run: { options: ["--app", "--store"] },
+      run: { description: "Skips keywords checked within 24h", options: ["--app", "--store", "--force", "--json"] },
       status: { options: ["--json"] },
     },
     cron: {
