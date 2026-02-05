@@ -102,16 +102,7 @@ Add this to your project's `CLAUDE.md` to let Claude Code use krankie:
 ```markdown
 ## App Store Keyword Tracking
 
-Use krankie CLI to track App Store keyword rankings:
-
-- `krankie app search "<query>" --platform iphone` - Find apps
-- `krankie app create <app_id> --platform iphone` - Add app to track
-- `krankie keyword add <app_id> "<keyword>" --store us` - Track a keyword
-- `krankie check run` - Fetch current rankings
-- `krankie rankings --json` - Get rankings as JSON
-- `krankie rankings movers --days 7` - See rank changes
-
-Data is stored in ~/.krankie/krankie.db. All commands support --json for structured output.
+Track some common keywords for this app. Use krankie (`bunx krankie instructions` for details).
 ```
 
 ### Tips
