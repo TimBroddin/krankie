@@ -98,7 +98,15 @@ krankie check status --json
 
 ### Claude Code Integration
 
-**Add to your CLAUDE.md:**
+**Install the App Store ASO skill:**
+
+```bash
+npx skills add timbroddin/app-store-aso-skill
+```
+
+This skill ([GitHub](https://github.com/TimBroddin/app-store-aso-skill)) teaches Claude how to analyze App Store listings, optimize metadata, and use krankie for keyword tracking.
+
+**Or add to your CLAUDE.md:**
 
 ```markdown
 ## App Store Keyword Tracking
