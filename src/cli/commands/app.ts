@@ -218,34 +218,38 @@ async function info(args: string[]): Promise<void> {
     console.log(JSON.stringify(details, null, 2));
   } else {
     const sizeInMB = (parseInt(details.fileSizeBytes, 10) / 1024 / 1024).toFixed(1);
+    const rating = details.userRatingCount > 0
+      ? `${details.averageUserRating.toFixed(1)} ⭐ (${details.userRatingCount.toLocaleString()})`
+      : "No ratings yet";
 
-    console.log(`${details.trackName}
-${"=".repeat(details.trackName.length)}
+    console.log(`\n${details.trackName}\n`);
 
-App ID:       ${details.trackId}
-Bundle ID:    ${details.bundleId}
-Developer:    ${details.artistName}
-Price:        ${details.formattedPrice}
-Category:     ${details.primaryGenreName}
-Rating:       ${details.averageUserRating.toFixed(1)} (${details.userRatingCount.toLocaleString()} ratings)
-Version:      ${details.version}
-Size:         ${sizeInMB} MB
-Min iOS:      ${details.minimumOsVersion}
-Content:      ${details.contentAdvisoryRating}
-Released:     ${new Date(details.releaseDate).toLocaleDateString()}
-Updated:      ${new Date(details.currentVersionReleaseDate).toLocaleDateString()}
-
-Genres:       ${details.genres.join(", ")}
-Languages:    ${details.languageCodesISO2A.slice(0, 10).join(", ")}${details.languageCodesISO2A.length > 10 ? ` (+${details.languageCodesISO2A.length - 10} more)` : ""}
-
-App Store:    ${details.trackViewUrl}
-`);
+    outputTable(
+      ["Field", "Value"],
+      [
+        ["App ID", String(details.trackId)],
+        ["Bundle ID", details.bundleId],
+        ["Developer", details.artistName],
+        ["Price", details.formattedPrice],
+        ["Category", details.primaryGenreName],
+        ["Genres", details.genres.join(", ")],
+        ["Rating", rating],
+        ["Version", details.version],
+        ["Size", `${sizeInMB} MB`],
+        ["Min iOS", details.minimumOsVersion],
+        ["Content Rating", details.contentAdvisoryRating],
+        ["Released", new Date(details.releaseDate).toLocaleDateString()],
+        ["Updated", new Date(details.currentVersionReleaseDate).toLocaleDateString()],
+        ["Languages", details.languageCodesISO2A.slice(0, 8).join(", ") + (details.languageCodesISO2A.length > 8 ? ` (+${details.languageCodesISO2A.length - 8})` : "")],
+        ["App Store", details.trackViewUrl],
+      ]
+    );
 
     if (details.releaseNotes) {
-      console.log(`Release Notes:\n${details.releaseNotes.slice(0, 500)}${details.releaseNotes.length > 500 ? "..." : ""}\n`);
+      console.log(`\nRelease Notes:\n${details.releaseNotes.slice(0, 400)}${details.releaseNotes.length > 400 ? "..." : ""}`);
     }
 
-    console.log(`Description:\n${details.description.slice(0, 500)}${details.description.length > 500 ? "..." : ""}`);
+    console.log(`\nDescription:\n${details.description.slice(0, 400)}${details.description.length > 400 ? "..." : ""}\n`);
   }
 }
 
