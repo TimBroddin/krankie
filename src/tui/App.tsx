@@ -138,13 +138,13 @@ export default function App(): React.ReactElement {
     if (key.leftArrow && !selectedApp) {
       const idx = TABS.findIndex((t) => t.id === activeTab);
       const newIdx = idx > 0 ? idx - 1 : TABS.length - 1;
-      setActiveTab(TABS[newIdx].id as TabId);
+      setActiveTab(TABS[newIdx]!.id as TabId);
       return;
     }
     if (key.rightArrow && !selectedApp) {
       const idx = TABS.findIndex((t) => t.id === activeTab);
       const newIdx = idx < TABS.length - 1 ? idx + 1 : 0;
-      setActiveTab(TABS[newIdx].id as TabId);
+      setActiveTab(TABS[newIdx]!.id as TabId);
       return;
     }
 

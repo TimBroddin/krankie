@@ -41,5 +41,5 @@ const USER_AGENTS = [
 ];
 
 export function randomUserAgent(): string {
-  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]!;
 }

@@ -63,56 +63,82 @@ export async function checkRanking(
 export interface CheckProgress {
   total: number;
   completed: number;
+  requests: number;
   current: {
     keyword: string;
     store: string;
-    appId: string;
   };
 }
 
 export type ProgressCallback = (progress: CheckProgress) => void;
 
+interface CheckInput {
+  appId: string;
+  keyword: string;
+  store: string;
+  platform: Platform;
+  keywordId: number;
+}
+
 export async function checkMultiple(
-  checks: Array<{
-    appId: string;
-    keyword: string;
-    store: string;
-    platform: Platform;
-    keywordId: number;
-  }>,
+  checks: CheckInput[],
   onProgress?: ProgressCallback
 ): Promise<Array<RankResult & { keywordId: number }>> {
   const results: Array<RankResult & { keywordId: number }> = [];
 
-  for (let i = 0; i < checks.length; i++) {
-    const check = checks[i];
+  // Group checks by (keyword, store, platform) to dedupe API requests
+  // Multiple apps can share the same keyword search
+  const groupedChecks = new Map<string, CheckInput[]>();
+
+  for (const check of checks) {
+    const key = `${check.keyword}|${check.store}|${check.platform}`;
+    const group = groupedChecks.get(key);
+    if (group) {
+      group.push(check);
+    } else {
+      groupedChecks.set(key, [check]);
+    }
+  }
+
+  const groups = Array.from(groupedChecks.values());
+  let completedChecks = 0;
+
+  for (let i = 0; i < groups.length; i++) {
+    const group = groups[i]!;
+    const first = group[0]!;
 
     if (onProgress) {
       onProgress({
         total: checks.length,
-        completed: i,
+        completed: completedChecks,
+        requests: groups.length,
         current: {
-          keyword: check.keyword,
-          store: check.store,
-          appId: check.appId,
+          keyword: first.keyword,
+          store: first.store,
         },
       });
     }
 
-    const result = await checkRanking(
-      check.appId,
-      check.keyword,
-      check.store,
-      check.platform
-    );
+    // Single API request for this keyword/store/platform
+    const response = await searchKeyword(first.keyword, first.store, first.platform);
+    const checkedAt = new Date();
 
-    results.push({
-      ...result,
-      keywordId: check.keywordId,
-    });
+    // Extract ranks for ALL apps in this group from the single response
+    for (const check of group) {
+      const { rank } = parseSearchResults(response, check.appId);
+      results.push({
+        keyword: check.keyword,
+        store: check.store,
+        appId: check.appId,
+        rank,
+        checkedAt,
+        keywordId: check.keywordId,
+      });
+      completedChecks++;
+    }
 
     // Add delay between requests (except for the last one)
-    if (i < checks.length - 1) {
+    if (i < groups.length - 1) {
       await sleep(randomDelay());
     }
   }
@@ -148,7 +174,7 @@ export async function lookupApp(
       return res.json() as Promise<ITunesSearchResponse>;
     });
 
-    if (response.resultCount > 0) {
+    if (response.resultCount > 0 && response.results[0]) {
       const app = response.results[0];
       return {
         trackId: app.trackId,

@@ -63,14 +63,23 @@ export async function addKeyword(
   return inserted;
 }
 
+export interface KeywordWithLastCheck extends KeywordWithApp {
+  last_checked_at: string | null;
+}
+
 export async function listKeywords(options?: {
   appId?: string;
   store?: string;
+  includeLastCheck?: boolean;
 }): Promise<KeywordWithApp[]> {
   const db = await getDb();
 
+  const selectLastCheck = options?.includeLastCheck
+    ? ", (SELECT MAX(checked_at) FROM rankings WHERE keyword_id = k.id) as last_checked_at"
+    : "";
+
   let sql = `
-    SELECT k.*, a.app_id as app_store_id, a.name as app_name, a.platform
+    SELECT k.*, a.app_id as app_store_id, a.name as app_name, a.platform${selectLastCheck}
     FROM keywords k
     JOIN apps a ON k.app_id = a.id
     WHERE 1=1

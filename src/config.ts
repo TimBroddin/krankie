@@ -13,6 +13,7 @@ export const CONFIG = {
     maxDelay: 5000,
     maxRetries: 3,
     maxRank: 200,
+    refreshIntervalHours: 24,
   },
 
   cron: {

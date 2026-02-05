@@ -145,7 +145,7 @@ async function status(args: string[]): Promise<void> {
   if (cronLine) {
     // Parse hour from cron line (format: "0 H * * * ...")
     const match = cronLine.match(/^0\s+(\d+)\s+\*/);
-    if (match) {
+    if (match && match[1]) {
       hour = parseInt(match[1], 10);
 
       // Calculate next run

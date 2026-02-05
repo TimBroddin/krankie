@@ -1,8 +1,8 @@
 import { parseArgs } from "util";
-import { listKeywords, addRanking, setMetadata, getMetadata, getStats } from "../../db";
+import { listKeywords, addRanking, setMetadata, getMetadata, getStats, type KeywordWithLastCheck } from "../../db";
 import { checkMultiple, type CheckProgress } from "../../scraper/appstore";
 import { outputSuccess, outputError } from "../output";
-import type { Platform } from "../../config";
+import { CONFIG, type Platform } from "../../config";
 
 export async function run(args: string[]): Promise<void> {
   const subcommand = args[0];
@@ -30,6 +30,7 @@ Commands:
 Options:
   --app <app_id>    Filter by app
   --store <store>   Filter by store
+  --force           Check all keywords even if recently checked
   --json            Output as JSON
 `);
 }
@@ -40,6 +41,7 @@ async function runCheck(args: string[]): Promise<void> {
     options: {
       app: { type: "string" },
       store: { type: "string" },
+      force: { type: "boolean", default: false },
       json: { type: "boolean", default: false },
     },
     allowPositionals: true,
@@ -48,7 +50,8 @@ async function runCheck(args: string[]): Promise<void> {
   const keywords = await listKeywords({
     appId: values.app as string | undefined,
     store: values.store as string | undefined,
-  });
+    includeLastCheck: true,
+  }) as KeywordWithLastCheck[];
 
   if (keywords.length === 0) {
     if (values.json) {
@@ -59,7 +62,35 @@ async function runCheck(args: string[]): Promise<void> {
     return;
   }
 
-  const checks = keywords.map((k) => ({
+  // Filter out keywords checked within the refresh interval (unless --force)
+  const refreshIntervalMs = CONFIG.scraper.refreshIntervalHours * 60 * 60 * 1000;
+  const now = Date.now();
+
+  const staleKeywords = values.force
+    ? keywords
+    : keywords.filter((k) => {
+        if (!k.last_checked_at) return true; // Never checked
+        const lastCheck = new Date(k.last_checked_at).getTime();
+        return now - lastCheck >= refreshIntervalMs;
+      });
+
+  const skippedCount = keywords.length - staleKeywords.length;
+
+  if (staleKeywords.length === 0) {
+    if (values.json) {
+      console.log(JSON.stringify({
+        checked: 0,
+        skipped: skippedCount,
+        message: `All ${skippedCount} keywords were checked within the last ${CONFIG.scraper.refreshIntervalHours} hours. Use --force to check anyway.`,
+      }));
+    } else {
+      console.log(`All ${skippedCount} keywords were checked within the last ${CONFIG.scraper.refreshIntervalHours} hours.`);
+      console.log("Use --force to check anyway.");
+    }
+    return;
+  }
+
+  const checks = staleKeywords.map((k) => ({
     appId: k.app_store_id,
     keyword: k.keyword,
     store: k.store,
@@ -71,9 +102,11 @@ async function runCheck(args: string[]): Promise<void> {
     console.log(`Checking ${checks.length} keyword(s)...\n`);
   }
 
+  let requestCount = 0;
   const onProgress = values.json
     ? undefined
     : (progress: CheckProgress) => {
+        requestCount = progress.requests;
         const pct = Math.round((progress.completed / progress.total) * 100);
         process.stdout.write(
           `\r[${pct.toString().padStart(3)}%] ${progress.current.keyword} (${progress.current.store})`.padEnd(60)
@@ -103,6 +136,8 @@ async function runCheck(args: string[]): Promise<void> {
     console.log(
       JSON.stringify({
         checked: results.length,
+        skipped: skippedCount,
+        requests: requestCount,
         found,
         notFound: results.length - found,
         elapsed: `${elapsed}s`,
@@ -115,7 +150,10 @@ async function runCheck(args: string[]): Promise<void> {
       }, null, 2)
     );
   } else {
-    outputSuccess(`Checked ${results.length} keywords in ${elapsed}s`);
+    outputSuccess(`Checked ${results.length} keywords in ${elapsed}s (${requestCount} requests)`);
+    if (skippedCount > 0) {
+      console.log(`  Skipped: ${skippedCount} (checked within ${CONFIG.scraper.refreshIntervalHours}h)`);
+    }
     console.log(`  Found: ${found}`);
     console.log(`  Not ranked: ${results.length - found}`);
 
@@ -143,14 +181,13 @@ async function status(args: string[]): Promise<void> {
   });
 
   const stats = await getStats();
-  const lastCheck = stats.lastCheck;
+  const { lastCheck } = stats;
 
   if (values.json) {
     console.log(
       JSON.stringify({
-        lastCheck,
-        lastCheckRelative: lastCheck ? getRelativeTime(new Date(lastCheck)) : null,
         ...stats,
+        lastCheckRelative: lastCheck ? getRelativeTime(new Date(lastCheck)) : null,
       }, null, 2)
     );
   } else {
