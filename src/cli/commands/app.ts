@@ -1,5 +1,5 @@
 import { parseArgs } from "util";
-import { createApp, listApps, getAppByAppId, deleteApp, listKeywords } from "../../db";
+import { createApp, updateApp, listApps, getAppByAppId, deleteApp, listKeywords } from "../../db";
 import { lookupApp, lookupAppDetails, searchAppStore } from "../../scraper/appstore";
 import { outputTable, outputSuccess, outputError } from "../output";
 import { CONFIG, isValidPlatform, type Platform } from "../../config";
@@ -11,6 +11,9 @@ export async function run(args: string[]): Promise<void> {
   switch (subcommand) {
     case "create":
       await create(subArgs);
+      break;
+    case "update":
+      await update(subArgs);
       break;
     case "list":
       await list(subArgs);
@@ -33,22 +36,47 @@ export async function run(args: string[]): Promise<void> {
 }
 
 function printHelp(): void {
-  console.log(`Usage: krankie app <create|list|show|info|delete|search> [options]
+  console.log(`Usage: krankie app <create|update|list|show|info|delete|search> [options]
 
 Commands:
   create <app_id>   Add a new app to track
+  update <app_id>   Update app settings (own/competitor, tracking)
   list              List all tracked apps
   show <app_id>     Show tracked app details
   info <app_id>     Fetch full App Store metadata
   delete <app_id>   Remove an app
   search <query>    Search App Store for apps
 
-Options:
-  --name <name>         App name (auto-fetched if not provided)
-  --platform <platform> Platform: ${CONFIG.platforms.join(", ")}
-  --store <store>       Store/country code (default: us)
-  --limit <n>           Max results for search (default: 10)
-  --json                Output as JSON
+Create Options:
+  --name <name>           App name (auto-fetched if not provided)
+  --platform <platform>   Platform: ${CONFIG.platforms.join(", ")}
+  --own                   Mark as own app (enables all tracking by default)
+  --track-keywords        Enable keyword tracking
+  --track-ratings         Enable ratings tracking
+  --track-reviews         Enable reviews tracking
+  --json                  Output as JSON
+
+Update Options:
+  --own                   Mark as own app
+  --competitor            Mark as competitor app
+  --track-keywords        Enable keyword tracking
+  --no-track-keywords     Disable keyword tracking
+  --track-ratings         Enable ratings tracking
+  --no-track-ratings      Disable ratings tracking
+  --track-reviews         Enable reviews tracking
+  --no-track-reviews      Disable reviews tracking
+  --json                  Output as JSON
+
+List Options:
+  --own                   Show only own apps
+  --competitors           Show only competitor apps
+  --platform <platform>   Filter by platform
+  --json                  Output as JSON
+
+Other Options:
+  --store <store>         Store/country code (default: us)
+  --limit <n>             Max results for search (default: 10)
+  --json                  Output as JSON
 `);
 }
 
@@ -58,6 +86,10 @@ async function create(args: string[]): Promise<void> {
     options: {
       name: { type: "string" },
       platform: { type: "string", default: "iphone" },
+      own: { type: "boolean", default: false },
+      "track-keywords": { type: "boolean" },
+      "track-ratings": { type: "boolean" },
+      "track-reviews": { type: "boolean" },
       json: { type: "boolean", default: false },
     },
     allowPositionals: true,
@@ -94,12 +126,100 @@ async function create(args: string[]): Promise<void> {
     }
   }
 
-  const app = await createApp(appId, platform as Platform, name, developer);
+  const isOwn = values.own as boolean;
+  const app = await createApp(appId, platform as Platform, name, developer, {
+    isOwn,
+    trackKeywords: values["track-keywords"] as boolean | undefined,
+    trackRatings: values["track-ratings"] as boolean | undefined,
+    trackReviews: values["track-reviews"] as boolean | undefined,
+  });
 
   if (values.json) {
     console.log(JSON.stringify(app, null, 2));
   } else {
-    outputSuccess(`Added app: ${app.name ?? app.app_id} (${app.platform})`);
+    const badge = app.is_own ? "[OWN]" : "[COMPETITOR]";
+    outputSuccess(`Added app: ${app.name ?? app.app_id} (${app.platform}) ${badge}`);
+  }
+}
+
+async function update(args: string[]): Promise<void> {
+  const { values, positionals } = parseArgs({
+    args,
+    options: {
+      own: { type: "boolean" },
+      competitor: { type: "boolean" },
+      "track-keywords": { type: "boolean" },
+      "no-track-keywords": { type: "boolean" },
+      "track-ratings": { type: "boolean" },
+      "no-track-ratings": { type: "boolean" },
+      "track-reviews": { type: "boolean" },
+      "no-track-reviews": { type: "boolean" },
+      json: { type: "boolean", default: false },
+    },
+    allowPositionals: true,
+  });
+
+  const appId = positionals[0];
+  if (!appId) {
+    outputError("App ID required. Usage: krankie app update <app_id> [flags]");
+    process.exit(1);
+  }
+
+  const existing = await getAppByAppId(appId);
+  if (!existing) {
+    outputError(`App not found: ${appId}`);
+    process.exit(1);
+  }
+
+  const updates: Parameters<typeof updateApp>[1] = {};
+
+  if (values.own) {
+    updates.isOwn = true;
+  } else if (values.competitor) {
+    updates.isOwn = false;
+  }
+
+  if (values["track-keywords"]) {
+    updates.trackKeywords = true;
+  } else if (values["no-track-keywords"]) {
+    updates.trackKeywords = false;
+  }
+
+  if (values["track-ratings"]) {
+    updates.trackRatings = true;
+  } else if (values["no-track-ratings"]) {
+    updates.trackRatings = false;
+  }
+
+  if (values["track-reviews"]) {
+    updates.trackReviews = true;
+  } else if (values["no-track-reviews"]) {
+    updates.trackReviews = false;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    outputError("No updates specified. Use --own, --competitor, --track-keywords, etc.");
+    process.exit(1);
+  }
+
+  const app = await updateApp(appId, updates);
+
+  if (!app) {
+    outputError(`Failed to update app: ${appId}`);
+    process.exit(1);
+  }
+
+  if (values.json) {
+    console.log(JSON.stringify(app, null, 2));
+  } else {
+    const badge = app.is_own ? "[OWN]" : "[COMPETITOR]";
+    const tracking = [
+      app.track_keywords ? "K" : null,
+      app.track_ratings ? "R" : null,
+      app.track_reviews ? "V" : null,
+    ].filter(Boolean).join("/");
+
+    outputSuccess(`Updated app: ${app.name ?? app.app_id} (${app.platform}) ${badge} [${tracking || "no tracking"}]`);
   }
 }
 
@@ -107,12 +227,26 @@ async function list(args: string[]): Promise<void> {
   const { values } = parseArgs({
     args,
     options: {
+      own: { type: "boolean", default: false },
+      competitors: { type: "boolean", default: false },
+      platform: { type: "string" },
       json: { type: "boolean", default: false },
     },
     allowPositionals: true,
   });
 
-  const apps = await listApps();
+  // Build filter options
+  const filterOptions: { isOwn?: boolean; platform?: string } = {};
+  if (values.own) {
+    filterOptions.isOwn = true;
+  } else if (values.competitors) {
+    filterOptions.isOwn = false;
+  }
+  if (values.platform) {
+    filterOptions.platform = values.platform as string;
+  }
+
+  const apps = await listApps(Object.keys(filterOptions).length > 0 ? filterOptions : undefined);
 
   if (apps.length === 0) {
     if (values.json) {
@@ -135,8 +269,16 @@ async function list(args: string[]): Promise<void> {
     });
 
     outputTable(
-      ["App ID", "Name", "Platform", "Keywords"],
-      apps.map((a) => [a.app_id, a.name ?? "-", a.platform, keywordCounts.get(a.app_id) ?? 0])
+      ["App ID", "Name", "Platform", "Type", "Tracking", "Keywords"],
+      apps.map((a) => {
+        const badge = a.is_own ? "OWN" : "COMP";
+        const tracking = [
+          a.track_keywords ? "K" : null,
+          a.track_ratings ? "R" : null,
+          a.track_reviews ? "V" : null,
+        ].filter(Boolean).join("/") || "-";
+        return [a.app_id, a.name ?? "-", a.platform, badge, tracking, keywordCounts.get(a.app_id) ?? 0];
+      })
     );
   }
 }
@@ -167,10 +309,19 @@ async function show(args: string[]): Promise<void> {
   if (values.json) {
     console.log(JSON.stringify({ ...app, keywords }, null, 2));
   } else {
-    console.log(`App: ${app.name ?? app.app_id}`);
+    const badge = app.is_own ? "[OWN]" : "[COMPETITOR]";
+    const trackingFlags = [
+      `Keywords: ${app.track_keywords ? "ON" : "OFF"}`,
+      `Ratings: ${app.track_ratings ? "ON" : "OFF"}`,
+      `Reviews: ${app.track_reviews ? "ON" : "OFF"}`,
+    ].join(", ");
+
+    console.log(`App: ${app.name ?? app.app_id} ${badge}`);
     console.log(`  ID: ${app.app_id}`);
     console.log(`  Platform: ${app.platform}`);
     console.log(`  Developer: ${app.developer ?? "-"}`);
+    console.log(`  Type: ${app.is_own ? "Own App" : "Competitor"}`);
+    console.log(`  Tracking: ${trackingFlags}`);
     console.log(`  Created: ${app.created_at}`);
     console.log(`  Keywords: ${keywords.length}`);
 

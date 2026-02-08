@@ -6,9 +6,12 @@ const commands = {
   check: () => import("./commands/check"),
   cron: () => import("./commands/cron"),
   rankings: () => import("./commands/rankings"),
+  ratings: () => import("./commands/ratings-cmd"),
+  reviews: () => import("./commands/reviews"),
   instructions: () => import("./commands/instructions"),
   info: () => import("./commands/info"),
   tui: () => import("../tui/index"),
+  web: () => import("./commands/web"),
 };
 
 type Command = keyof typeof commands;
@@ -24,19 +27,25 @@ Commands:
   check         Run ranking checks
   cron          Manage scheduled checks
   rankings      Query ranking data
+  ratings       View app store ratings
+  reviews       Fetch and browse reviews
   instructions  Show agent instructions
   info          Show database info
   tui           Launch dashboard
+  web           Start web dashboard
 
 Options:
   --help, -h    Show help
   --json        Output as JSON (where applicable)
 
 Examples:
-  krankie app create 6737412117 --name "My App" --platform iphone
+  krankie app create 6737412117 --name "My App" --platform iphone --own
+  krankie app update 6737412117 --own --track-keywords --track-ratings
+  krankie app list --own --platform iphone
   krankie keyword add 6737412117 "my keyword" --store us
+  krankie keyword list --platform iphone
   krankie check run
-  krankie rankings --json
+  krankie rankings --platform iphone --json
 `);
 }
 

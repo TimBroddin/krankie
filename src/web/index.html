@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Krankie — ASO Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com?plugins="></script>
+  <script>
+    if (localStorage.getItem("krankie-theme") === "dark" ||
+        (!localStorage.getItem("krankie-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+      document.documentElement.classList.add("dark");
+    }
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"DM Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            background: "var(--color-background)",
+            foreground: "var(--color-foreground)",
+            card: { DEFAULT: "var(--color-card)", foreground: "var(--color-card-foreground)" },
+            popover: { DEFAULT: "var(--color-popover)", foreground: "var(--color-popover-foreground)" },
+            primary: { DEFAULT: "var(--color-primary)", foreground: "var(--color-primary-foreground)" },
+            secondary: { DEFAULT: "var(--color-secondary)", foreground: "var(--color-secondary-foreground)" },
+            muted: { DEFAULT: "var(--color-muted)", foreground: "var(--color-muted-foreground)" },
+            accent: { DEFAULT: "var(--color-accent)", foreground: "var(--color-accent-foreground)" },
+            destructive: { DEFAULT: "var(--color-destructive)", foreground: "var(--color-destructive-foreground)" },
+            border: "var(--color-border)",
+            input: "var(--color-input)",
+            ring: "var(--color-ring)",
+            success: { DEFAULT: "var(--color-success)", foreground: "var(--color-success-foreground)" },
+            warning: { DEFAULT: "var(--color-warning)", foreground: "var(--color-warning-foreground)" },
+            teal: {
+              50: "#f0fdfa", 100: "#ccfbf1", 200: "#99f6e4", 300: "#5eead4", 400: "#2dd4bf",
+              500: "#14b8a6", 600: "#0d9488", 700: "#0f766e", 800: "#115e59", 900: "#134e4a",
+            },
+          },
+          borderRadius: { sm: "0.25rem", md: "0.375rem", lg: "0.5rem", xl: "0.75rem" },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="./styles/globals.css">
+</head>
+<body class="bg-background text-foreground min-h-screen font-sans antialiased">
+  <div id="root"></div>
+  <script type="module" src="./main.tsx"></script>
+</body>
+</html>

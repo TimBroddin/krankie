@@ -1,5 +1,5 @@
 import { parseArgs } from "util";
-import { getCurrentRankings, getMovers, getRankingHistory, getKeywordById } from "../../db";
+import { getCurrentRankings, getMovers, getRankingHistory, getKeywordById, type SortField } from "../../db";
 import { outputTable, outputError } from "../output";
 
 export async function run(args: string[]): Promise<void> {
@@ -26,15 +26,24 @@ async function current(args: string[]): Promise<void> {
       app: { type: "string" },
       keyword: { type: "string" },
       store: { type: "string" },
+      platform: { type: "string" },
+      sort: { type: "string", default: "rank" },
+      desc: { type: "boolean", default: false },
       json: { type: "boolean", default: false },
     },
     allowPositionals: true,
   });
 
+  const validSorts: SortField[] = ["rank", "keyword", "store", "app", "change", "checked"];
+  const sort = (validSorts.includes(values.sort as SortField) ? values.sort : "rank") as SortField;
+
   const rankings = await getCurrentRankings({
     appId: values.app as string | undefined,
     keyword: values.keyword as string | undefined,
     store: values.store as string | undefined,
+    platform: values.platform as string | undefined,
+    sort,
+    desc: values.desc as boolean,
   });
 
   if (rankings.length === 0) {

@@ -1,6 +1,7 @@
 import { parseArgs } from "util";
-import { listKeywords, addRanking, setMetadata, getMetadata, getStats, type KeywordWithLastCheck } from "../../db";
+import { listKeywords, addRanking, addRating as addRatingDb, setMetadata, getMetadata, getStats, getStaleRatingChecks, type KeywordWithLastCheck } from "../../db";
 import { checkMultiple, type CheckProgress } from "../../scraper/appstore";
+import { fetchMultipleRatings, type RatingCheckProgress } from "../../scraper/ratings";
 import { outputSuccess, outputError } from "../output";
 import { CONFIG, type Platform } from "../../config";
 
@@ -47,11 +48,135 @@ async function runCheck(args: string[]): Promise<void> {
     allowPositionals: true,
   });
 
+  const startTime = Date.now();
+  let requestCount = 0;
+  let keywordsChecked = 0;
+  let keywordsSkipped = 0;
+  let keywordsFound = 0;
+  let ratingsChecked = 0;
+  let ratingsSkipped = 0;
+  const keywordResults: Array<{ keyword: string; store: string; appId: string; rank: number | null }> = [];
+
+  // ── Keywords (only for apps with keyword tracking enabled) ──
   const keywords = await listKeywords({
     appId: values.app as string | undefined,
     store: values.store as string | undefined,
+    trackKeywords: true,
     includeLastCheck: true,
   }) as KeywordWithLastCheck[];
+
+  if (keywords.length > 0) {
+    const refreshIntervalMs = CONFIG.scraper.refreshIntervalHours * 60 * 60 * 1000;
+    const now = Date.now();
+
+    const staleKeywords = values.force
+      ? keywords
+      : keywords.filter((k) => {
+          if (!k.last_checked_at) return true;
+          const lastCheck = new Date(k.last_checked_at).getTime();
+          return now - lastCheck >= refreshIntervalMs;
+        });
+
+    keywordsSkipped = keywords.length - staleKeywords.length;
+
+    if (staleKeywords.length > 0) {
+      const checks = staleKeywords.map((k) => ({
+        appId: k.app_store_id,
+        keyword: k.keyword,
+        store: k.store,
+        platform: k.platform as Platform,
+        keywordId: k.id,
+      }));
+
+      if (!values.json) {
+        console.log(`Checking ${checks.length} keyword(s)...\n`);
+      }
+
+      const onProgress = values.json
+        ? undefined
+        : (progress: CheckProgress) => {
+            requestCount = progress.requests;
+            const pct = Math.round((progress.completed / progress.total) * 100);
+            process.stdout.write(
+              `\r[${pct.toString().padStart(3)}%] ${progress.current.keyword} (${progress.current.store})`.padEnd(60)
+            );
+          };
+
+      const results = await checkMultiple(checks, onProgress);
+
+      if (!values.json) {
+        process.stdout.write("\r" + " ".repeat(60) + "\r");
+      }
+
+      for (const result of results) {
+        await addRanking(result.keywordId, result.rank);
+        keywordResults.push({ keyword: result.keyword, store: result.store, appId: result.appId, rank: result.rank });
+      }
+
+      keywordsChecked = results.length;
+      keywordsFound = results.filter((r) => r.rank !== null).length;
+    } else if (!values.json) {
+      console.log(`All ${keywordsSkipped} keywords checked within the last ${CONFIG.scraper.refreshIntervalHours}h.`);
+    }
+  }
+
+  // ── Ratings ──
+  const staleRatings = await getStaleRatingChecks({
+    appId: values.app as string | undefined,
+    store: values.store as string | undefined,
+    force: values.force as boolean,
+    refreshIntervalHours: CONFIG.scraper.refreshIntervalHours,
+  });
+
+  if (staleRatings.length > 0) {
+    const ratingChecks = staleRatings.map((r) => ({
+      appId: r.app_store_id,
+      store: r.store,
+      appName: r.app_name ?? r.app_store_id,
+      dbAppId: r.app_id,
+    }));
+
+    if (!values.json) {
+      console.log(`\nFetching ratings for ${ratingChecks.length} app/store combo(s)...\n`);
+    }
+
+    const onRatingProgress = values.json
+      ? undefined
+      : (progress: RatingCheckProgress) => {
+          process.stdout.write(
+            `\r[${Math.round((progress.completed / progress.total) * 100).toString().padStart(3)}%] ${progress.current.appName} (${progress.current.store})`.padEnd(60)
+          );
+        };
+
+    const ratingResults = await fetchMultipleRatings(ratingChecks, onRatingProgress);
+
+    if (!values.json) {
+      process.stdout.write("\r" + " ".repeat(60) + "\r");
+    }
+
+    for (const r of ratingResults) {
+      if (r.score !== null || r.ratingsCount !== null) {
+        await addRatingDb(r.dbAppId, r.store, r.score, r.ratingsCount, r.histogram);
+        ratingsChecked++;
+      }
+    }
+  }
+
+  // ── Nothing to do? ──
+  if (keywordsChecked === 0 && ratingsChecked === 0 && keywords.length > 0) {
+    if (values.json) {
+      console.log(JSON.stringify({
+        checked: 0,
+        skipped: keywordsSkipped,
+        ratingsChecked: 0,
+        ratingsSkipped: staleRatings.length === 0 ? keywords.length : 0,
+        message: `Everything checked within the last ${CONFIG.scraper.refreshIntervalHours} hours. Use --force to check anyway.`,
+      }));
+    } else {
+      console.log("Use --force to check anyway.");
+    }
+    return;
+  }
 
   if (keywords.length === 0) {
     if (values.json) {
@@ -62,103 +187,40 @@ async function runCheck(args: string[]): Promise<void> {
     return;
   }
 
-  // Filter out keywords checked within the refresh interval (unless --force)
-  const refreshIntervalMs = CONFIG.scraper.refreshIntervalHours * 60 * 60 * 1000;
-  const now = Date.now();
-
-  const staleKeywords = values.force
-    ? keywords
-    : keywords.filter((k) => {
-        if (!k.last_checked_at) return true; // Never checked
-        const lastCheck = new Date(k.last_checked_at).getTime();
-        return now - lastCheck >= refreshIntervalMs;
-      });
-
-  const skippedCount = keywords.length - staleKeywords.length;
-
-  if (staleKeywords.length === 0) {
-    if (values.json) {
-      console.log(JSON.stringify({
-        checked: 0,
-        skipped: skippedCount,
-        message: `All ${skippedCount} keywords were checked within the last ${CONFIG.scraper.refreshIntervalHours} hours. Use --force to check anyway.`,
-      }));
-    } else {
-      console.log(`All ${skippedCount} keywords were checked within the last ${CONFIG.scraper.refreshIntervalHours} hours.`);
-      console.log("Use --force to check anyway.");
-    }
-    return;
-  }
-
-  const checks = staleKeywords.map((k) => ({
-    appId: k.app_store_id,
-    keyword: k.keyword,
-    store: k.store,
-    platform: k.platform as Platform,
-    keywordId: k.id,
-  }));
-
-  if (!values.json) {
-    console.log(`Checking ${checks.length} keyword(s)...\n`);
-  }
-
-  let requestCount = 0;
-  const onProgress = values.json
-    ? undefined
-    : (progress: CheckProgress) => {
-        requestCount = progress.requests;
-        const pct = Math.round((progress.completed / progress.total) * 100);
-        process.stdout.write(
-          `\r[${pct.toString().padStart(3)}%] ${progress.current.keyword} (${progress.current.store})`.padEnd(60)
-        );
-      };
-
-  const startTime = Date.now();
-  const results = await checkMultiple(checks, onProgress);
-
-  // Clear progress line
-  if (!values.json) {
-    process.stdout.write("\r" + " ".repeat(60) + "\r");
-  }
-
-  // Save rankings to database
-  for (const result of results) {
-    await addRanking(result.keywordId, result.rank);
-  }
-
-  // Update last check time
+  // ── Summary ──
   await setMetadata("last_check", new Date().toISOString());
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  const found = results.filter((r) => r.rank !== null).length;
 
   if (values.json) {
     console.log(
       JSON.stringify({
-        checked: results.length,
-        skipped: skippedCount,
+        checked: keywordsChecked,
+        skipped: keywordsSkipped,
         requests: requestCount,
-        found,
-        notFound: results.length - found,
+        found: keywordsFound,
+        notFound: keywordsChecked - keywordsFound,
+        ratingsChecked,
         elapsed: `${elapsed}s`,
-        results: results.map((r) => ({
-          keyword: r.keyword,
-          store: r.store,
-          appId: r.appId,
-          rank: r.rank,
-        })),
+        results: keywordResults,
       }, null, 2)
     );
   } else {
-    outputSuccess(`Checked ${results.length} keywords in ${elapsed}s (${requestCount} requests)`);
-    if (skippedCount > 0) {
-      console.log(`  Skipped: ${skippedCount} (checked within ${CONFIG.scraper.refreshIntervalHours}h)`);
+    if (keywordsChecked > 0) {
+      outputSuccess(`Checked ${keywordsChecked} keywords (${requestCount} requests)`);
+      if (keywordsSkipped > 0) {
+        console.log(`  Skipped: ${keywordsSkipped} (checked within ${CONFIG.scraper.refreshIntervalHours}h)`);
+      }
+      console.log(`  Found: ${keywordsFound}`);
+      console.log(`  Not ranked: ${keywordsChecked - keywordsFound}`);
     }
-    console.log(`  Found: ${found}`);
-    console.log(`  Not ranked: ${results.length - found}`);
+    if (ratingsChecked > 0) {
+      outputSuccess(`Fetched ratings for ${ratingsChecked} app/store combo(s)`);
+    }
+    console.log(`\nDone in ${elapsed}s`);
 
     // Show top movers summary
-    const ranked = results.filter((r) => r.rank !== null && r.rank <= 50);
+    const ranked = keywordResults.filter((r) => r.rank !== null && r.rank <= 50);
     if (ranked.length > 0) {
       console.log("\nTop 50 rankings:");
       ranked

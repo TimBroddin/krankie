@@ -4,27 +4,36 @@ import { Tabs, type Tab } from "./components/Tabs";
 import { Overview } from "./views/Overview";
 import { Apps } from "./views/Apps";
 import { AppDetail } from "./views/AppDetail";
-import { Keywords } from "./views/Keywords";
+import { Keywords, nextSortField, type SortField } from "./views/Keywords";
+import { Ratings as RatingsView } from "./views/Ratings";
+import { Reviews as ReviewsView } from "./views/Reviews";
 import { History } from "./views/History";
+import { AddKeyword } from "./views/AddKeyword";
 import {
   getStats,
   getMovers,
   listApps,
   listKeywords,
   getCurrentRankings,
+  getLatestRatings,
+  listReviews,
   type DbStats,
   type RankingWithKeyword,
+  type RatingWithChange,
+  type ReviewWithApp,
   type App as AppType,
 } from "../db";
 import { CONFIG } from "../config";
 import { existsSync, readFileSync } from "fs";
 
-type TabId = "overview" | "apps" | "keywords" | "history";
+type TabId = "overview" | "apps" | "keywords" | "ratings" | "reviews" | "history";
 
 const TABS: Tab[] = [
   { id: "overview", label: "Overview" },
   { id: "apps", label: "Apps" },
   { id: "keywords", label: "Keywords" },
+  { id: "ratings", label: "Ratings" },
+  { id: "reviews", label: "Reviews" },
   { id: "history", label: "History" },
 ];
 
@@ -56,26 +65,38 @@ export default function App(): React.ReactElement {
   const [rankings, setRankings] = useState<RankingWithKeyword[]>([]);
   const [recentLogs, setRecentLogs] = useState<string[]>([]);
 
+  const [ratingsData, setRatingsData] = useState<RatingWithChange[]>([]);
+  const [reviewsData, setReviewsData] = useState<ReviewWithApp[]>([]);
+
   const [selectedAppIndex, setSelectedAppIndex] = useState(0);
   const [selectedKeywordIndex, setSelectedKeywordIndex] = useState(0);
+  const [selectedRatingIndex, setSelectedRatingIndex] = useState(0);
+  const [selectedReviewIndex, setSelectedReviewIndex] = useState(0);
   const [selectedApp, setSelectedApp] = useState<AppType | null>(null);
   const [selectedStoreIndex, setSelectedStoreIndex] = useState(0);
+  const [keywordSortField, setKeywordSortField] = useState<SortField>("rank");
+  const [keywordSortDesc, setKeywordSortDesc] = useState(false);
+  const [addingKeyword, setAddingKeyword] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
-      const [statsData, moversData, appsData, keywordsData, rankingsData] =
+      const [statsData, moversData, appsData, keywordsData, rankingsData, ratingsResult, reviewsResult] =
         await Promise.all([
           getStats(),
           getMovers({ days: 1, minChange: 1 }),
           listApps(),
           listKeywords(),
           getCurrentRankings(),
+          getLatestRatings(),
+          listReviews({ limit: 50 }),
         ]);
 
       setStats(statsData);
       setMovers(moversData);
       setApps(appsData);
       setRankings(rankingsData);
+      setRatingsData(ratingsResult);
+      setReviewsData(reviewsResult);
 
       // Calculate keyword counts per app
       const counts = new Map<string, number>();
@@ -113,6 +134,15 @@ export default function App(): React.ReactElement {
   };
 
   useInput((input, key) => {
+    // When adding keyword, only handle Esc to exit
+    if (addingKeyword) {
+      if (key.escape) {
+        setAddingKeyword(false);
+        loadData(); // refresh after add
+      }
+      return;
+    }
+
     // Global: quit
     if (input === "q") {
       exit();
@@ -163,6 +193,10 @@ export default function App(): React.ReactElement {
         setSelectedAppIndex((prev) => Math.max(0, prev - 1));
       } else if (activeTab === "keywords") {
         setSelectedKeywordIndex((prev) => Math.max(0, prev - 1));
+      } else if (activeTab === "ratings") {
+        setSelectedRatingIndex((prev) => Math.max(0, prev - 1));
+      } else if (activeTab === "reviews") {
+        setSelectedReviewIndex((prev) => Math.max(0, prev - 1));
       }
       return;
     }
@@ -171,6 +205,10 @@ export default function App(): React.ReactElement {
         setSelectedAppIndex((prev) => Math.min(apps.length - 1, prev + 1));
       } else if (activeTab === "keywords") {
         setSelectedKeywordIndex((prev) => Math.min(rankings.length - 1, prev + 1));
+      } else if (activeTab === "ratings") {
+        setSelectedRatingIndex((prev) => Math.min(ratingsData.length - 1, prev + 1));
+      } else if (activeTab === "reviews") {
+        setSelectedReviewIndex((prev) => Math.min(reviewsData.length - 1, prev + 1));
       }
       return;
     }
@@ -180,6 +218,26 @@ export default function App(): React.ReactElement {
       setSelectedApp(apps[selectedAppIndex]);
       setSelectedStoreIndex(0);
       return;
+    }
+
+    // Add keyword shortcut
+    if (input === "a") {
+      if (activeTab === "keywords" || (activeTab === "apps" && selectedApp)) {
+        setAddingKeyword(true);
+        return;
+      }
+    }
+
+    // Sort cycling in keywords view
+    if (activeTab === "keywords") {
+      if (input === "s" && !key.shift) {
+        setKeywordSortField((prev) => nextSortField(prev));
+        return;
+      }
+      if (input === "S" || (input === "s" && key.shift)) {
+        setKeywordSortDesc((prev) => !prev);
+        return;
+      }
     }
   });
 
@@ -220,7 +278,7 @@ export default function App(): React.ReactElement {
           />
         )}
 
-        {activeTab === "apps" && selectedApp && (
+        {activeTab === "apps" && selectedApp && !addingKeyword && (
           <AppDetail
             app={selectedApp}
             rankings={rankings.filter((r) => r.app_store_id === selectedApp.app_id)}
@@ -229,8 +287,37 @@ export default function App(): React.ReactElement {
           />
         )}
 
-        {activeTab === "keywords" && (
-          <Keywords rankings={rankings} selectedIndex={selectedKeywordIndex} />
+        {activeTab === "keywords" && !addingKeyword && (
+          <Keywords
+            rankings={rankings}
+            selectedIndex={selectedKeywordIndex}
+            sortField={keywordSortField}
+            sortDesc={keywordSortDesc}
+          />
+        )}
+
+        {activeTab === "ratings" && (
+          <RatingsView
+            ratings={ratingsData}
+            selectedIndex={selectedRatingIndex}
+          />
+        )}
+
+        {activeTab === "reviews" && (
+          <ReviewsView
+            reviews={reviewsData}
+            selectedIndex={selectedReviewIndex}
+          />
+        )}
+
+        {addingKeyword && (
+          <AddKeyword
+            app={selectedApp ?? undefined}
+            onDone={() => {
+              setAddingKeyword(false);
+              loadData();
+            }}
+          />
         )}
 
         {activeTab === "history" && stats && (
@@ -246,7 +333,11 @@ export default function App(): React.ReactElement {
 
       <Box borderStyle="single" borderColor="gray" paddingX={1}>
         <Text dimColor>
-          q: quit | r: refresh | ←→: tabs | ↑↓: navigate | Enter: select | Esc: back
+          {addingKeyword
+            ? "Esc: cancel"
+            : `q: quit | r: refresh | ←→: tabs | ↑↓: navigate | Enter: select | Esc: back${
+                activeTab === "keywords" ? " | s: sort | S: reverse | a: add" : ""
+              }${activeTab === "apps" && selectedApp ? " | a: add keyword" : ""}`}
         </Text>
       </Box>
     </Box>

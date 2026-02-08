@@ -1,0 +1,121 @@
+/* Light mode — warm, clean, professional */
+:root {
+  --color-background: #fafaf9;
+  --color-foreground: #1c1917;
+  --color-card: #ffffff;
+  --color-card-foreground: #1c1917;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #1c1917;
+  --color-primary: #0d9488;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f5f5f4;
+  --color-secondary-foreground: #1c1917;
+  --color-muted: #f5f5f4;
+  --color-muted-foreground: #78716c;
+  --color-accent: #f0fdfa;
+  --color-accent-foreground: #0f766e;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #e7e5e4;
+  --color-input: #e7e5e4;
+  --color-ring: #0d9488;
+  --color-success: #059669;
+  --color-success-foreground: #ffffff;
+  --color-warning: #d97706;
+  --color-warning-foreground: #ffffff;
+  --color-sidebar: #ffffff;
+  --color-sidebar-border: #f0efed;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  --shadow-card-hover: 0 4px 12px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.03);
+}
+
+/* Dark mode — deep blue-slate, sophisticated */
+.dark {
+  --color-background: #0c1222;
+  --color-foreground: #e2e8f0;
+  --color-card: #131c31;
+  --color-card-foreground: #e2e8f0;
+  --color-popover: #131c31;
+  --color-popover-foreground: #e2e8f0;
+  --color-primary: #2dd4bf;
+  --color-primary-foreground: #042f2e;
+  --color-secondary: #1e293b;
+  --color-secondary-foreground: #e2e8f0;
+  --color-muted: #1e293b;
+  --color-muted-foreground: #94a3b8;
+  --color-accent: #0f2a2e;
+  --color-accent-foreground: #2dd4bf;
+  --color-destructive: #f87171;
+  --color-destructive-foreground: #1c1917;
+  --color-border: #1e293b;
+  --color-input: #1e293b;
+  --color-ring: #2dd4bf;
+  --color-success: #34d399;
+  --color-success-foreground: #042f2e;
+  --color-warning: #fbbf24;
+  --color-warning-foreground: #1c1917;
+  --color-sidebar: #0f1729;
+  --color-sidebar-border: #1a2540;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-card-hover: 0 4px 16px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.3);
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+body {
+  font-family: "DM Sans", system-ui, sans-serif;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Smooth transitions on theme switch */
+*, *::before, *::after {
+  transition-property: background-color, border-color, box-shadow;
+  transition-duration: 0.15s;
+  transition-timing-function: ease;
+}
+
+/* Override for animations that shouldn't transition */
+.animate-pulse, [class*="animate-"] {
+  transition: none !important;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-muted-foreground); }
+
+/* Utility */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Skeleton animation */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-muted) 25%,
+    var(--color-border) 50%,
+    var(--color-muted) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Focus ring */
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
