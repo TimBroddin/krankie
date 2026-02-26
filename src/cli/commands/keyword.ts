@@ -1,5 +1,5 @@
 import { parseArgs } from "util";
-import { addKeyword, listKeywords, deleteKeyword, getAppByAppId, getKeywordById } from "../../db";
+import { addKeyword, addRanking, listKeywords, deleteKeyword, getAppByAppId, getKeywordById } from "../../db";
 import { outputTable, outputSuccess, outputError, outputWarning } from "../output";
 import { isValidStore, isValidPlatform, type Platform } from "../../config";
 import { checkRanking } from "../../scraper/appstore";
@@ -166,6 +166,7 @@ async function add(args: string[]): Promise<void> {
           process.stderr.write(`  Checking rank for "${kw.keyword}" (${kw.store})...`);
           const result = await checkRanking(appId, kw.keyword, kw.store, app.platform as Platform);
           process.stderr.write("\r" + " ".repeat(60) + "\r");
+          await addRanking(kw.id, result.rank ?? null);
           if (result.rank) {
             console.log(`  "${kw.keyword}" (${kw.store}): rank #${result.rank}`);
           } else {
