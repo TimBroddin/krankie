@@ -1,4 +1,4 @@
-import { getDb, type App, type Keyword, type Ranking, type KeywordWithApp, type AppRating, type Review } from "./schema";
+import { getDb, type App, type Keyword, type Ranking, type KeywordWithApp, type AppRating, type Review, type CompetitorRanking, type AppCompetitor } from "./schema";
 import type { Platform } from "../config";
 
 // ============ Apps ============
@@ -803,4 +803,150 @@ export async function getReviewStats(options?: {
     recentCount: recent.total,
     recentAverageScore: recent.avg_score ?? 0,
   };
+}
+
+// ============ Competitor Rankings ============
+
+export async function addCompetitorRanking(
+  appId: number,
+  keyword: string,
+  store: string,
+  rank: number | null
+): Promise<CompetitorRanking> {
+  const db = await getDb();
+  db.run(
+    "INSERT INTO competitor_rankings (app_id, keyword, store, rank) VALUES (?, ?, ?, ?)",
+    [appId, keyword, store, rank]
+  );
+
+  return db
+    .query("SELECT * FROM competitor_rankings WHERE app_id = ? AND keyword = ? AND store = ? ORDER BY checked_at DESC LIMIT 1")
+    .get(appId, keyword, store) as CompetitorRanking;
+}
+
+export async function addCompetitorRankingsBatch(
+  rankings: Array<{
+    appId: number;
+    keyword: string;
+    store: string;
+    rank: number | null;
+  }>
+): Promise<number> {
+  const db = await getDb();
+  const stmt = db.prepare(
+    "INSERT INTO competitor_rankings (app_id, keyword, store, rank) VALUES (?, ?, ?, ?)"
+  );
+
+  let inserted = 0;
+  for (const r of rankings) {
+    stmt.run(r.appId, r.keyword, r.store, r.rank);
+    inserted++;
+  }
+
+  return inserted;
+}
+
+export interface CompetitorRankingWithApp extends CompetitorRanking {
+  app_store_id: string;
+  app_name: string | null;
+  platform: string;
+  previous_rank: number | null;
+  rank_change: number | null;
+}
+
+export async function getCompetitorRankings(options?: {
+  appId?: string;
+  keyword?: string;
+  store?: string;
+  days?: number;
+}): Promise<CompetitorRankingWithApp[]> {
+  const db = await getDb();
+
+  let sql = `
+    WITH latest AS (
+      SELECT cr.app_id, cr.keyword, cr.store, cr.rank, cr.checked_at,
+             ROW_NUMBER() OVER (PARTITION BY cr.app_id, cr.keyword, cr.store ORDER BY cr.checked_at DESC) as rn
+      FROM competitor_rankings cr
+    ),
+    previous AS (
+      SELECT cr.app_id, cr.keyword, cr.store, cr.rank as previous_rank,
+             ROW_NUMBER() OVER (PARTITION BY cr.app_id, cr.keyword, cr.store ORDER BY cr.checked_at DESC) as rn
+      FROM competitor_rankings cr
+    )
+    SELECT
+      l.app_id, l.keyword, l.store, l.rank, l.checked_at,
+      a.app_id as app_store_id, a.name as app_name, a.platform,
+      p.previous_rank,
+      CASE
+        WHEN l.rank IS NULL OR p.previous_rank IS NULL THEN NULL
+        ELSE p.previous_rank - l.rank
+      END as rank_change
+    FROM latest l
+    JOIN apps a ON l.app_id = a.id
+    LEFT JOIN previous p ON l.app_id = p.app_id AND l.keyword = p.keyword AND l.store = p.store AND p.rn = 2
+    WHERE l.rn = 1
+  `;
+
+  const params: (string | number)[] = [];
+
+  if (options?.appId) {
+    sql += " AND a.app_id = ?";
+    params.push(options.appId);
+  }
+
+  if (options?.keyword) {
+    sql += " AND l.keyword LIKE ?";
+    params.push(`%${options.keyword}%`);
+  }
+
+  if (options?.store) {
+    sql += " AND l.store = ?";
+    params.push(options.store);
+  }
+
+  if (options?.days) {
+    sql += " AND l.checked_at >= datetime('now', ?)";
+    params.push(`-${options.days} days`);
+  }
+
+  sql += " ORDER BY a.app_id, l.keyword, l.store";
+
+  return db.query(sql).all(...params) as CompetitorRankingWithApp[];
+}
+
+// ============ App Competitors (linking) ============
+
+export async function linkCompetitor(ownAppId: number, competitorAppId: number): Promise<void> {
+  const db = await getDb();
+  db.run(
+    "INSERT OR IGNORE INTO app_competitors (own_app_id, competitor_app_id) VALUES (?, ?)",
+    [ownAppId, competitorAppId]
+  );
+}
+
+export async function unlinkCompetitor(ownAppId: number, competitorAppId: number): Promise<boolean> {
+  const db = await getDb();
+  const result = db.run(
+    "DELETE FROM app_competitors WHERE own_app_id = ? AND competitor_app_id = ?",
+    [ownAppId, competitorAppId]
+  );
+  return result.changes > 0;
+}
+
+export async function getLinkedCompetitors(ownAppId: number): Promise<App[]> {
+  const db = await getDb();
+  return db.query(
+    `SELECT a.* FROM apps a
+     JOIN app_competitors ac ON a.id = ac.competitor_app_id
+     WHERE ac.own_app_id = ?
+     ORDER BY a.name, a.app_id`
+  ).all(ownAppId) as App[];
+}
+
+export async function getLinkedCompetitorIds(): Promise<number[]> {
+  const db = await getDb();
+  const rows = db.query(
+    "SELECT DISTINCT competitor_app_id FROM app_competitors"
+  ).all() as Array<{ competitor_app_id: number }>;
+  return rows.map((r) => r.competitor_app_id);
 }

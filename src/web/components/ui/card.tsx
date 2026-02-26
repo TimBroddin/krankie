@@ -3,15 +3,9 @@ import React from "react";
 export function Card({ className = "", children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={`rounded-xl border border-border bg-card text-card-foreground hover:-translate-y-0.5 transition-all duration-200 ${className}`}
+      className={`rounded-xl border border-border bg-card text-card-foreground ${className}`}
       style={{
         boxShadow: "var(--shadow-card)",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.boxShadow = "var(--shadow-card-hover)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.boxShadow = "var(--shadow-card)";
       }}
       {...props}
     >

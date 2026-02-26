@@ -1,6 +1,7 @@
 import {
   listApps,
   getAppByAppId,
+  getAppById,
   createApp,
   updateApp,
   deleteApp,
@@ -17,6 +18,12 @@ import {
   getStats,
   addRanking,
   addRating as addRatingDb,
+  addCompetitorRankingsBatch,
+  getCompetitorRankings,
+  linkCompetitor,
+  unlinkCompetitor,
+  getLinkedCompetitors,
+  getLinkedCompetitorIds,
   setMetadata,
   getStaleRatingChecks,
   type KeywordWithLastCheck,
@@ -144,6 +151,7 @@ async function runBackgroundCheck(options: {
   let keywordsSkipped = 0;
   let keywordsFound = 0;
   let ratingsChecked = 0;
+  let competitorRankingsStored = 0;
 
   try {
     // ── Keywords ──
@@ -153,6 +161,13 @@ async function runBackgroundCheck(options: {
       trackKeywords: true,
       includeLastCheck: true,
     })) as KeywordWithLastCheck[];
+
+    // Fetch only linked competitor apps to track alongside keyword checks
+    const linkedCompetitorDbIds = await getLinkedCompetitorIds();
+    const allCompetitorApps = await listApps({ isOwn: false });
+    const competitorApps = allCompetitorApps.filter((a) => linkedCompetitorDbIds.includes(a.id));
+    const competitorAppIds = competitorApps.map((a) => a.app_id);
+    const competitorIdMap = new Map(competitorApps.map((a) => [a.app_id, a.id]));
 
     if (keywords.length > 0) {
       const refreshIntervalMs =
@@ -189,10 +204,34 @@ async function runBackgroundCheck(options: {
           };
         };
 
-        const results = await checkMultiple(checks, onProgress);
+        const { results, competitorResults } = await checkMultiple(
+          checks,
+          onProgress,
+          competitorAppIds.length > 0 ? competitorAppIds : undefined
+        );
 
         for (const result of results) {
           await addRanking(result.keywordId, result.rank);
+        }
+
+        // Store competitor rankings in batch
+        if (competitorResults.length > 0) {
+          const batchData = competitorResults
+            .map((cr) => {
+              const dbId = competitorIdMap.get(cr.appStoreId);
+              if (!dbId) return null;
+              return {
+                appId: dbId,
+                keyword: cr.keyword,
+                store: cr.store,
+                rank: cr.rank,
+              };
+            })
+            .filter((r): r is NonNullable<typeof r> => r !== null);
+
+          if (batchData.length > 0) {
+            competitorRankingsStored = await addCompetitorRankingsBatch(batchData);
+          }
         }
 
         keywordsChecked = results.length;
@@ -588,17 +627,22 @@ async function handleApiRequest(req: Request, url: URL): Promise<Response> {
       if (!query.seed) {
         return jsonError("seed is required");
       }
-      const result = await findKeywords({
-        seed: query.seed,
-        store: query.store ?? "us",
-        platform: (query.platform ?? "iphone") as Platform,
-        limit: query.limit ? Number(query.limit) : 20,
-        depth: (query.depth ?? "shallow") as "shallow" | "deep",
-        minApps: query.minApps ? Number(query.minApps) : 2,
-        topApps: query.topApps ? Number(query.topApps) : 10,
-        compareAppId: query.compareAppId,
-      });
-      return json(result);
+      try {
+        const result = await findKeywords({
+          seed: query.seed,
+          store: query.store ?? "us",
+          platform: (query.platform ?? "iphone") as Platform,
+          limit: query.limit ? Number(query.limit) : 20,
+          depth: (query.depth ?? "shallow") as "shallow" | "deep",
+          minApps: query.minApps ? Number(query.minApps) : 2,
+          topApps: query.topApps ? Number(query.topApps) : 10,
+          compareAppId: query.compareAppId,
+        });
+        return json(result);
+      } catch (err) {
+        console.error("Discover find error:", err);
+        return jsonError(`Discovery failed: ${String(err)}`, 500);
+      }
     }
 
     // ── GET /api/discover/opportunities ──
@@ -606,16 +650,21 @@ async function handleApiRequest(req: Request, url: URL): Promise<Response> {
       if (!query.appId) {
         return jsonError("appId is required");
       }
-      const result = await discoverKeywords({
-        appId: query.appId,
-        store: query.store ?? "us",
-        platform: (query.platform ?? "iphone") as Platform,
-        limit: query.limit ? Number(query.limit) : 20,
-        depth: (query.depth ?? "shallow") as "shallow" | "deep",
-        minApps: query.minApps ? Number(query.minApps) : 2,
-        topApps: query.topApps ? Number(query.topApps) : 10,
-      });
-      return json(result);
+      try {
+        const result = await discoverKeywords({
+          appId: query.appId,
+          store: query.store ?? "us",
+          platform: (query.platform ?? "iphone") as Platform,
+          limit: query.limit ? Number(query.limit) : 20,
+          depth: (query.depth ?? "shallow") as "shallow" | "deep",
+          minApps: query.minApps ? Number(query.minApps) : 2,
+          topApps: query.topApps ? Number(query.topApps) : 10,
+        });
+        return json(result);
+      } catch (err) {
+        console.error("Discover opportunities error:", err);
+        return jsonError(`Discovery failed: ${String(err)}`, 500);
+      }
     }
 
     // ── GET /api/competitors/:appId ──
@@ -702,8 +751,65 @@ async function handleApiRequest(req: Request, url: URL): Promise<Response> {
       }
     }
 
+    // ── GET /api/apps/:ownAppId/competitors ──
+    {
+      const params = matchRoute(pathname, "/api/apps/:ownAppId/competitors");
+      if (req.method === "GET" && params) {
+        const app = await getAppById(Number(params.ownAppId));
+        if (!app) return jsonError("App not found", 404);
+        const linked = await getLinkedCompetitors(app.id);
+        return json(linked);
+      }
+    }
+
+    // ── POST /api/apps/:ownAppId/competitors ──
+    {
+      const params = matchRoute(pathname, "/api/apps/:ownAppId/competitors");
+      if (req.method === "POST" && params) {
+        const app = await getAppById(Number(params.ownAppId));
+        if (!app) return jsonError("App not found", 404);
+        const body = (await req.json()) as { competitorAppId?: number };
+        if (!body.competitorAppId) return jsonError("competitorAppId is required");
+        await linkCompetitor(app.id, body.competitorAppId);
+        return json({ linked: true }, 201);
+      }
+    }
+
+    // ── DELETE /api/apps/:ownAppId/competitors/:competitorAppId ──
+    {
+      const params = matchRoute(pathname, "/api/apps/:ownAppId/competitors/:competitorAppId");
+      if (req.method === "DELETE" && params) {
+        const app = await getAppById(Number(params.ownAppId));
+        if (!app) return jsonError("App not found", 404);
+        const deleted = await unlinkCompetitor(app.id, Number(params.competitorAppId));
+        if (!deleted) return jsonError("Link not found", 404);
+        return json({ unlinked: true });
+      }
+    }
+
+    // ── GET /api/competitor-rankings ──
+    if (req.method === "GET" && pathname === "/api/competitor-rankings") {
+      const rankings = await getCompetitorRankings({
+        appId: query.appId,
+        keyword: query.keyword,
+        store: query.store,
+        days: query.days ? Number(query.days) : undefined,
+      });
+      return json(rankings);
+    }
+
     // ── POST /api/check/run ──
     if (req.method === "POST" && pathname === "/api/check/run") {
+      // Reset stale checks (stuck for >5 minutes, e.g. after server restart)
+      if (checkState.running && checkState.startedAt) {
+        const elapsed = Date.now() - new Date(checkState.startedAt).getTime();
+        if (elapsed > 5 * 60 * 1000) {
+          checkState.running = false;
+          checkState.progress.phase = "error";
+          checkState.error = "Check timed out (reset)";
+          checkState.finishedAt = new Date().toISOString();
+        }
+      }
       if (checkState.running) {
         return json({ status: "already_running", check: checkState }, 409);
       }
@@ -745,6 +851,7 @@ export function startServer(port: number): {
 } {
   const server = Bun.serve({
     port,
+    idleTimeout: 120, // discovery endpoints make many external API calls
     routes: {
       "/": homepage,
     },

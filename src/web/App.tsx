@@ -1,24 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { DashboardPage } from "./pages/Dashboard";
-import { AppsPage } from "./pages/Apps";
-import { KeywordsPage } from "./pages/Keywords";
 import { RankingsPage } from "./pages/Rankings";
-import { RatingsPage } from "./pages/Ratings";
-import { ReviewsPage } from "./pages/Reviews";
+import { AppsPage } from "./pages/Apps";
 import { ResearchPage } from "./pages/Research";
-import { DiscoverPage } from "./pages/Discover";
-import { CompetitorsPage } from "./pages/Competitors";
 
 const ROUTES = {
-  "#/": { label: "Dashboard", icon: DashboardIcon },
+  "#/": { label: "Rankings", icon: RankingsIcon },
   "#/apps": { label: "Apps", icon: AppsIcon },
   "#/research": { label: "Research", icon: ResearchIcon },
-  "#/keywords": { label: "Keywords", icon: KeywordsIcon },
-  "#/discover": { label: "Discover", icon: DiscoverIcon },
-  "#/rankings": { label: "Rankings", icon: RankingsIcon },
-  "#/competitors": { label: "Competitors", icon: CompetitorsIcon },
-  "#/ratings": { label: "Ratings", icon: RatingsIcon },
-  "#/reviews": { label: "Reviews", icon: ReviewsIcon },
 } as const;
 
 type Route = keyof typeof ROUTES;
@@ -55,25 +43,13 @@ export function App() {
 function renderPage(route: string) {
   switch (route) {
     case "#/":
-      return <DashboardPage />;
+      return <RankingsPage />;
     case "#/apps":
       return <AppsPage />;
-    case "#/keywords":
-      return <KeywordsPage />;
-    case "#/rankings":
-      return <RankingsPage />;
     case "#/research":
       return <ResearchPage />;
-    case "#/discover":
-      return <DiscoverPage />;
-    case "#/competitors":
-      return <CompetitorsPage />;
-    case "#/ratings":
-      return <RatingsPage />;
-    case "#/reviews":
-      return <ReviewsPage />;
     default:
-      return <DashboardPage />;
+      return <RankingsPage />;
   }
 }
 
@@ -148,13 +124,10 @@ function Sidebar({ currentRoute, dark, onToggleTheme }: { currentRoute: string; 
 
 // ============ Simple SVG Icons ============
 
-function DashboardIcon({ className }: { className?: string }) {
+function RankingsIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="1.5" y="1.5" width="5" height="5" rx="1" />
-      <rect x="9.5" y="1.5" width="5" height="5" rx="1" />
-      <rect x="1.5" y="9.5" width="5" height="5" rx="1" />
-      <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
+      <path d="M2 14V9M6 14V6M10 14V4M14 14V2" />
     </svg>
   );
 }
@@ -168,36 +141,11 @@ function AppsIcon({ className }: { className?: string }) {
   );
 }
 
-function KeywordsIcon({ className }: { className?: string }) {
+function ResearchIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="6" cy="6" r="4.5" />
-      <path d="M14.5 14.5L9.5 9.5" />
-    </svg>
-  );
-}
-
-function RankingsIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 14V9M6 14V6M10 14V4M14 14V2" />
-    </svg>
-  );
-}
-
-function RatingsIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 1.5L9.8 5.2L14 5.7L10.9 8.6L11.7 12.8L8 10.8L4.3 12.8L5.1 8.6L2 5.7L6.2 5.2Z" />
-    </svg>
-  );
-}
-
-function ReviewsIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 3h12v8H5L2 14V3Z" rx="1" />
-      <path d="M5 6h6M5 8.5h4" />
+      <circle cx="8" cy="8" r="6.5" />
+      <path d="M10.5 5.5L9 9l-3.5 1.5L7 7l3.5-1.5Z" />
     </svg>
   );
 }
@@ -207,36 +155,6 @@ function SunIcon({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="8" cy="8" r="3" />
       <path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.3 3.3l1 1M11.7 11.7l1 1M3.3 12.7l1-1M11.7 3.3l1-1" />
-    </svg>
-  );
-}
-
-function ResearchIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 3h12v9H2V3Z" />
-      <path d="M5 6.5h6M5 9h3" />
-      <circle cx="12" cy="12.5" r="2" />
-      <path d="M13.5 14L15 15.5" />
-    </svg>
-  );
-}
-
-function DiscoverIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="8" cy="8" r="6.5" />
-      <path d="M10.5 5.5L9 9l-3.5 1.5L7 7l3.5-1.5Z" />
-    </svg>
-  );
-}
-
-function CompetitorsIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="5" cy="5" r="3" />
-      <circle cx="11" cy="5" r="3" />
-      <path d="M8 11c-3 0-5 1.5-5 3h10c0-1.5-2-3-5-3Z" />
     </svg>
   );
 }

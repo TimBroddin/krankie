@@ -1,5 +1,5 @@
 import { parseArgs } from "util";
-import { listKeywords, addRanking, addRating as addRatingDb, setMetadata, getMetadata, getStats, getStaleRatingChecks, type KeywordWithLastCheck } from "../../db";
+import { listKeywords, listApps, addRanking, addRating as addRatingDb, addCompetitorRankingsBatch, getLinkedCompetitorIds, setMetadata, getMetadata, getStats, getStaleRatingChecks, type KeywordWithLastCheck } from "../../db";
 import { checkMultiple, type CheckProgress } from "../../scraper/appstore";
 import { fetchMultipleRatings, type RatingCheckProgress } from "../../scraper/ratings";
 import { outputSuccess, outputError } from "../output";
@@ -55,6 +55,7 @@ async function runCheck(args: string[]): Promise<void> {
   let keywordsFound = 0;
   let ratingsChecked = 0;
   let ratingsSkipped = 0;
+  let competitorRankingsStored = 0;
   const keywordResults: Array<{ keyword: string; store: string; appId: string; rank: number | null }> = [];
 
   // ── Keywords (only for apps with keyword tracking enabled) ──
@@ -79,6 +80,14 @@ async function runCheck(args: string[]): Promise<void> {
 
     keywordsSkipped = keywords.length - staleKeywords.length;
 
+    // Fetch only linked competitor apps to track alongside keyword checks
+    const linkedCompetitorDbIds = await getLinkedCompetitorIds();
+    const allCompetitorApps = await listApps({ isOwn: false });
+    const competitorApps = allCompetitorApps.filter((a) => linkedCompetitorDbIds.includes(a.id));
+    const competitorAppIds = competitorApps.map((a) => a.app_id);
+    // Build a map from app_id (store ID string) → DB id for batch insert
+    const competitorIdMap = new Map(competitorApps.map((a) => [a.app_id, a.id]));
+
     if (staleKeywords.length > 0) {
       const checks = staleKeywords.map((k) => ({
         appId: k.app_store_id,
@@ -89,7 +98,7 @@ async function runCheck(args: string[]): Promise<void> {
       }));
 
       if (!values.json) {
-        console.log(`Checking ${checks.length} keyword(s)...\n`);
+        console.log(`Checking ${checks.length} keyword(s)...${competitorAppIds.length > 0 ? ` (tracking ${competitorAppIds.length} competitor(s))` : ""}\n`);
       }
 
       const onProgress = values.json
@@ -102,7 +111,7 @@ async function runCheck(args: string[]): Promise<void> {
             );
           };
 
-      const results = await checkMultiple(checks, onProgress);
+      const { results, competitorResults } = await checkMultiple(checks, onProgress, competitorAppIds.length > 0 ? competitorAppIds : undefined);
 
       if (!values.json) {
         process.stdout.write("\r" + " ".repeat(60) + "\r");
@@ -111,6 +120,26 @@ async function runCheck(args: string[]): Promise<void> {
       for (const result of results) {
         await addRanking(result.keywordId, result.rank);
         keywordResults.push({ keyword: result.keyword, store: result.store, appId: result.appId, rank: result.rank });
+      }
+
+      // Store competitor rankings in batch
+      if (competitorResults.length > 0) {
+        const batchData = competitorResults
+          .map((cr) => {
+            const dbId = competitorIdMap.get(cr.appStoreId);
+            if (!dbId) return null;
+            return {
+              appId: dbId,
+              keyword: cr.keyword,
+              store: cr.store,
+              rank: cr.rank,
+            };
+          })
+          .filter((r): r is NonNullable<typeof r> => r !== null);
+
+        if (batchData.length > 0) {
+          competitorRankingsStored = await addCompetitorRankingsBatch(batchData);
+        }
       }
 
       keywordsChecked = results.length;
@@ -201,6 +230,7 @@ async function runCheck(args: string[]): Promise<void> {
         found: keywordsFound,
         notFound: keywordsChecked - keywordsFound,
         ratingsChecked,
+        competitorRankingsStored,
         elapsed: `${elapsed}s`,
         results: keywordResults,
       }, null, 2)
@@ -213,6 +243,9 @@ async function runCheck(args: string[]): Promise<void> {
       }
       console.log(`  Found: ${keywordsFound}`);
       console.log(`  Not ranked: ${keywordsChecked - keywordsFound}`);
+    }
+    if (competitorRankingsStored > 0) {
+      outputSuccess(`Stored ${competitorRankingsStored} competitor ranking(s)`);
     }
     if (ratingsChecked > 0) {
       outputSuccess(`Fetched ratings for ${ratingsChecked} app/store combo(s)`);

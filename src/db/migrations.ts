@@ -66,6 +66,44 @@ export async function runMigrations(): Promise<void> {
 
     db.run("UPDATE metadata SET value = '3' WHERE key = 'schema_version'");
   }
+
+  if (currentVersion < 4) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS competitor_rankings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        app_id INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+        keyword TEXT NOT NULL,
+        store TEXT NOT NULL,
+        rank INTEGER,
+        checked_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_comp_rankings_app_kw
+        ON competitor_rankings(app_id, keyword, store, checked_at DESC);
+    `);
+    db.run("UPDATE metadata SET value = '4' WHERE key = 'schema_version'");
+  }
+
+  if (currentVersion < 5) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS app_competitors (
+        own_app_id INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+        competitor_app_id INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (own_app_id, competitor_app_id)
+      );
+    `);
+
+    // Auto-link existing competitors to all own apps
+    db.exec(`
+      INSERT OR IGNORE INTO app_competitors (own_app_id, competitor_app_id)
+      SELECT own.id, comp.id
+      FROM apps own, apps comp
+      WHERE own.is_own = 1 AND comp.is_own = 0;
+    `);
+
+    db.run("UPDATE metadata SET value = '5' WHERE key = 'schema_version'");
+  }
 }
 
 export { getDb, closeDb } from "./schema";

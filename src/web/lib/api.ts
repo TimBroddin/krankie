@@ -205,10 +205,37 @@ export interface KeywordApp {
   free: boolean;
 }
 
+export interface CompetitorRankingEntry {
+  app_id: number;
+  keyword: string;
+  store: string;
+  rank: number | null;
+  checked_at: string;
+  app_store_id: string;
+  app_name: string | null;
+  platform: string;
+  previous_rank: number | null;
+  rank_change: number | null;
+}
+
 export interface CheckStatus {
   running: boolean;
-  lastCheck: string | null;
-  progress?: { current: number; total: number };
+  startedAt: string | null;
+  finishedAt: string | null;
+  progress: {
+    phase: "idle" | "keywords" | "ratings" | "done" | "error";
+    total: number;
+    completed: number;
+    current: string;
+  };
+  result: {
+    keywordsChecked: number;
+    keywordsSkipped: number;
+    keywordsFound: number;
+    ratingsChecked: number;
+    elapsed: string;
+  } | null;
+  error: string | null;
 }
 
 // ============ API Client ============
@@ -305,6 +332,24 @@ export const api = {
   // Competitors
   getCompetitors: (appId: string) =>
     fetchApi<{ competitors: CompetitorOverview[] }>(`/api/competitors/${appId}`),
+
+  // Linked competitors
+  getLinkedCompetitors: (ownAppId: number) =>
+    fetchApi<App[]>(`/api/apps/${ownAppId}/competitors`),
+
+  linkCompetitor: (ownAppId: number, competitorAppId: number) =>
+    fetchApi<{ linked: boolean }>(`/api/apps/${ownAppId}/competitors`, {
+      method: "POST",
+      body: JSON.stringify({ competitorAppId }),
+    }),
+
+  unlinkCompetitor: (ownAppId: number, competitorAppId: number) =>
+    fetchApi<{ unlinked: boolean }>(`/api/apps/${ownAppId}/competitors/${competitorAppId}`, {
+      method: "DELETE",
+    }),
+
+  getCompetitorRankings: (params?: { appId?: string; keyword?: string; store?: string; days?: number }) =>
+    fetchApi<CompetitorRankingEntry[]>(`/api/competitor-rankings${toQuery(params)}`),
 
   runCheck: (data?: { appId?: string; store?: string; force?: boolean }) =>
     fetchApi<{ status: string }>("/api/check/run", { method: "POST", body: JSON.stringify(data ?? {}) }),

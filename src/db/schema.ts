@@ -4,7 +4,7 @@ import { existsSync } from "fs";
 import { dirname } from "path";
 import { CONFIG, type Platform } from "../config";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 5;
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS apps (
@@ -70,10 +70,27 @@ CREATE TABLE IF NOT EXISTS reviews (
   UNIQUE(app_id, store, review_id)
 );
 
+CREATE TABLE IF NOT EXISTS competitor_rankings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  app_id INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+  keyword TEXT NOT NULL,
+  store TEXT NOT NULL,
+  rank INTEGER,
+  checked_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS app_competitors (
+  own_app_id INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+  competitor_app_id INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (own_app_id, competitor_app_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_rankings_keyword_time ON rankings(keyword_id, checked_at DESC);
 CREATE INDEX IF NOT EXISTS idx_keywords_app ON keywords(app_id);
 CREATE INDEX IF NOT EXISTS idx_ratings_app_store ON ratings(app_id, store, checked_at DESC);
 CREATE INDEX IF NOT EXISTS idx_reviews_app_store ON reviews(app_id, store, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_comp_rankings_app_kw ON competitor_rankings(app_id, keyword, store, checked_at DESC);
 `;
 
 let _db: Database | null = null;
@@ -167,4 +184,19 @@ export interface Review {
   version: string | null;
   updated_at: string | null;
   fetched_at: string;
+}
+
+export interface CompetitorRanking {
+  id: number;
+  app_id: number;
+  keyword: string;
+  store: string;
+  rank: number | null;
+  checked_at: string;
+}
+
+export interface AppCompetitor {
+  own_app_id: number;
+  competitor_app_id: number;
+  created_at: string;
 }

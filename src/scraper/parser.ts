@@ -47,6 +47,32 @@ export function parseSearchResults(
   return { rank, results };
 }
 
+/**
+ * Find ranks for multiple app IDs in a single search response.
+ * Returns a map of appId → rank (or null if not found).
+ */
+export function findAppsInResults(
+  data: ITunesSearchResponse,
+  appIds: string[]
+): Map<string, number | null> {
+  const idSet = new Set(appIds);
+  const ranks = new Map<string, number | null>();
+
+  // Initialize all as null (not found)
+  for (const id of appIds) {
+    ranks.set(id, null);
+  }
+
+  data.results.forEach((item, index) => {
+    const trackIdStr = String(item.trackId);
+    if (idSet.has(trackIdStr)) {
+      ranks.set(trackIdStr, index + 1);
+    }
+  });
+
+  return ranks;
+}
+
 // Map our platform names to iTunes entity parameter values
 export function platformToEntity(platform: Platform): string {
   switch (platform) {

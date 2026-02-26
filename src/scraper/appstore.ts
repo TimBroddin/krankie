@@ -1,6 +1,6 @@
 import { CONFIG, type Platform } from "../config";
 import { randomDelay, sleep, withRetry, randomUserAgent } from "./ratelimit";
-import { parseSearchResults, platformToEntity, type ITunesSearchResponse } from "./parser";
+import { parseSearchResults, findAppsInResults, platformToEntity, type ITunesSearchResponse } from "./parser";
 
 export interface RankResult {
   keyword: string;
@@ -80,11 +80,26 @@ interface CheckInput {
   keywordId: number;
 }
 
+export interface CompetitorResult {
+  appStoreId: string;
+  keyword: string;
+  store: string;
+  rank: number | null;
+  checkedAt: Date;
+}
+
+export interface CheckMultipleResult {
+  results: Array<RankResult & { keywordId: number }>;
+  competitorResults: CompetitorResult[];
+}
+
 export async function checkMultiple(
   checks: CheckInput[],
-  onProgress?: ProgressCallback
-): Promise<Array<RankResult & { keywordId: number }>> {
+  onProgress?: ProgressCallback,
+  competitorAppIds?: string[]
+): Promise<CheckMultipleResult> {
   const results: Array<RankResult & { keywordId: number }> = [];
+  const competitorResults: CompetitorResult[] = [];
 
   // Group checks by (keyword, store, platform) to dedupe API requests
   // Multiple apps can share the same keyword search
@@ -137,13 +152,27 @@ export async function checkMultiple(
       completedChecks++;
     }
 
+    // Extract competitor ranks from the same response (zero extra API calls)
+    if (competitorAppIds && competitorAppIds.length > 0) {
+      const competitorRanks = findAppsInResults(response, competitorAppIds);
+      for (const [appStoreId, rank] of competitorRanks) {
+        competitorResults.push({
+          appStoreId,
+          keyword: first.keyword,
+          store: first.store,
+          rank,
+          checkedAt,
+        });
+      }
+    }
+
     // Add delay between requests (except for the last one)
     if (i < groups.length - 1) {
       await sleep(randomDelay());
     }
   }
 
-  return results;
+  return { results, competitorResults };
 }
 
 // Full app details from App Store
